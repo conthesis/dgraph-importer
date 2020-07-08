@@ -1,34 +1,34 @@
-import traceback
 import asyncio
-import signal
-from typing import Any, Dict, List, Tuple, Optional
-
-from nats.aio.client import Client as NATS
 import itertools
+import signal
+import traceback
+from typing import Any, Dict, List, Optional, Tuple
+
 import orjson
 import pydgraph
+from nats.aio.client import Client as NATS
 from pydantic import BaseModel, validator
 
 
 def _query_string_frag(name, value):
-    return f'eq({name}, \"{value}\")'
+    return f'eq({name}, "{value}")'
+
 
 def _nquad(name, rel, value):
-    return f'{name} <{rel}> {value}.'
-
-
+    return f"{name} <{rel}> {value}."
 
 
 class EntityField(BaseModel):
     name: str
     key: Optional[str] = None
 
-    @validator('key', pre=True, always=True)
+    @validator("key", pre=True, always=True)
     def key_default(cls, v, *, values, **kwargs):
-        return v or values['name']
+        return v or values["name"]
 
     def value(self, data):
         return data[self.key]
+
 
 class Entity(BaseModel):
     name: str
@@ -52,7 +52,6 @@ class Entity(BaseModel):
             for (name, val) in self._each(data, attr):
                 yield (name, attr.name, f'"{val}"')
 
-
     def each_name(self, data):
         if not self.multiple:
             yield self.name
@@ -62,7 +61,6 @@ class Entity(BaseModel):
             assert isinstance(vals, list)
             for i in range(len(vals)):
                 yield f"{self.name}_{i}"
-
 
     def _each(self, data, attribute=None):
         if attribute is None:
@@ -77,15 +75,17 @@ class Entity(BaseModel):
                 print(attribute, vals)
                 raise RuntimeError("When multiple is set QueryFilter must be list")
             else:
-                vals = [vals] * len(self.query_filter) # Replicate the same value for each
+                vals = [vals] * len(
+                    self.query_filter
+                )  # Replicate the same value for each
         for (i, x) in enumerate(vals):
             yield (f"{self.name}_{i}", x)
-
 
     def query(self, data):
         qf = self.query_filter
         for (name, val) in self._each(data):
             yield f"{name} as var(func: {_query_string_frag(qf.name, val)})"
+
 
 class ExtractionConfig(BaseModel):
     entities: List[Entity]
@@ -115,8 +115,7 @@ class ExtractionConfig(BaseModel):
 
     def query(self, data):
         queries = itertools.chain(*[e.query(data) for e in self.entities])
-        return '{\n'+ "\n".join(queries) + "\n }"
-
+        return "{\n" + "\n".join(queries) + "\n }"
 
 
 class ExtractionTrigger(BaseModel):
@@ -136,11 +135,13 @@ class ExtractionTrigger(BaseModel):
 
 TOPIC = "conthesis.action.dgraph.Import"
 
+
 class Matcher:
     fut_stop: asyncio.Future
+
     def __init__(self):
         self.nc = NATS()
-        client_stub = pydgraph.DgraphClientStub('dgraph:9080')
+        client_stub = pydgraph.DgraphClientStub("dgraph:9080")
         self.dg = pydgraph.DgraphClient(client_stub)
         loop = asyncio.get_running_loop()
         loop.add_signal_handler(signal.SIGTERM, self.stop)
@@ -165,8 +166,7 @@ class Matcher:
 
     async def reply(self, msg, resp):
         if msg.reply:
-                await self.nc.publish(msg.reply, resp)
-
+            await self.nc.publish(msg.reply, resp)
 
     async def on_update(self, msg) -> None:
         tr = None
@@ -174,7 +174,7 @@ class Matcher:
             tr = ExtractionTrigger.from_bytes(msg.data)
         except Exception:
             traceback.print_exc()
-            await self.reply(msg, orjson.dumps({ "ok": False }))
+            await self.reply(msg, orjson.dumps({"ok": False}))
             return
 
         txn = self.dg.txn()
@@ -184,14 +184,16 @@ class Matcher:
             nq = tr.nquads()
             query = tr.query()
             mutation = txn.create_mutation(set_nquads=nq)
-            request = txn.create_request(query=query, mutations=[mutation], commit_now=True)
+            request = txn.create_request(
+                query=query, mutations=[mutation], commit_now=True
+            )
             txn.commit()
             await self.reply(msg, orjson.dumps({"ok": True}))
         except Exception:
             traceback.print_exc()
             print(nq, query)
             txn.discard()
-            await self.reply(msg, orjson.dumps({ "ok": False }))
+            await self.reply(msg, orjson.dumps({"ok": False}))
 
     def stop(self) -> None:
         self.fut_stop.set_result(True)
