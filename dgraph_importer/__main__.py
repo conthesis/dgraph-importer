@@ -1,13 +1,11 @@
 import asyncio
 
-import matcher
-
+import dgraph_importer as dg
 
 async def main():
-    m = matcher.Matcher()
+    m = dg.Matcher()
     await m.setup()
     await m.run_until_done()
-
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

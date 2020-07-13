@@ -20,7 +20,7 @@ pydantic = "*"
 python_version = "3.8"
 
 [scripts]
-server = "pipenv run python -m matcher"
+server = "pipenv run python -m dgraph_importer"
 typecheck = "mypy dcollect"
 test = "python -m pytest"
 
